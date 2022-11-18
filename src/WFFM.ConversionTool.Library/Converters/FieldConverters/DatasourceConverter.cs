@@ -14,141 +14,143 @@ using WFFM.ConversionTool.Library.Reporting;
 
 namespace WFFM.ConversionTool.Library.Converters.FieldConverters
 {
-	public class DatasourceConverter : BaseFieldConverter
-	{
-		private IItemFactory _itemFactory;
-		private IReporter _analysisReporter;
-		private ILogger _logger;
+    public class DatasourceConverter : BaseFieldConverter
+    {
+        private IItemFactory _itemFactory;
+        private IReporter _analysisReporter;
+        private ILogger _logger;
 
-		public DatasourceConverter(IItemFactory itemFactory, IReporter analysisReporter, ILogger logger)
-		{
-			_itemFactory = itemFactory;
-			_analysisReporter = analysisReporter;
-			_logger = logger;
-		}
+        public DatasourceConverter(IItemFactory itemFactory, IReporter analysisReporter, ILogger logger)
+        {
+            _itemFactory = itemFactory;
+            _analysisReporter = analysisReporter;
+            _logger = logger;
+        }
 
-		public override List<SCItem> ConvertValueElementToItems(SCField scField, string elementValue, MetadataTemplate metadataTemplate, SCItem sourceItem)
-		{
-			List<SCItem> convertedItems = new List<SCItem>();
+        public override List<SCItem> ConvertValueElementToItems(SCField scField, string elementValue, MetadataTemplate metadataTemplate, SCItem sourceItem)
+        {
+            List<SCItem> convertedItems = new List<SCItem>();
 
-			var decodedElementValue = Uri.UnescapeDataString(elementValue).Replace("+", " ");
+            var decodedElementValue = Uri.UnescapeDataString(elementValue).Replace("+", " ");
+            if (decodedElementValue.EndsWith("q"))
+                decodedElementValue += "uery>";
+            XmlNodeList queryElements = null;
+            try
+            {
+                queryElements = XmlHelper.GetXmlElementNodeList(decodedElementValue, "query", true);
+            }
+            catch (Exception ex)
+            {
+                _logger.Log(new LogEntry(LoggingEventType.Error,
+                    string.Format("ConvertValueElementToItems - Failed to parse Xml value. ItemID = {0} - FieldID = {1} - ElementName = {2} - ElementValue_Decoded = {3}",
+                        scField.ItemId, scField.Id, "query", decodedElementValue), ex));
+            }
+            if (queryElements != null && queryElements.Count > 0)
+            {
+                foreach (XmlNode queryElement in queryElements)
+                {
+                    if (queryElement.Attributes != null && queryElement.Attributes["t"] != null)
+                    {
+                        var queryType = queryElement.Attributes["t"].Value;
+                        if (string.Equals(queryType, "default", StringComparison.InvariantCultureIgnoreCase))
+                        {
+                            var value = XmlHelper.GetXmlElementValue(queryElement.InnerXml, "value");
+                            var displayName = value;
+                            var displayNames = new Dictionary<Tuple<string, int>, string>();
+                            var queryChildrenElements = XmlHelper.GetXmlElementNames(queryElement.InnerXml);
+                            foreach (string queryChildrenElementName in queryChildrenElements)
+                            {
+                                if (!string.Equals(queryChildrenElementName, "value", StringComparison.InvariantCultureIgnoreCase))
+                                {
+                                    displayName = XmlHelper.GetXmlElementValue(queryElement.InnerXml, queryChildrenElementName);
 
-			XmlNodeList queryElements = null;
-			try
-			{
-				queryElements = XmlHelper.GetXmlElementNodeList(decodedElementValue, "query", true);
-			}
-			catch (Exception ex)
-			{
-				_logger.Log(new LogEntry(LoggingEventType.Error,
-					string.Format("ConvertValueElementToItems - Failed to parse Xml value. ItemID = {0} - FieldID = {1} - ElementName = {2} - ElementValue_Decoded = {3}",
-						scField.ItemId, scField.Id, "query", decodedElementValue), ex));
-			}
-			if (queryElements != null && queryElements.Count > 0)
-			{
-				foreach (XmlNode queryElement in queryElements)
-				{
-					if (queryElement.Attributes != null && queryElement.Attributes["t"] != null)
-					{
-						var queryType = queryElement.Attributes["t"].Value;
-						if (string.Equals(queryType, "default", StringComparison.InvariantCultureIgnoreCase))
-						{
-							var value = XmlHelper.GetXmlElementValue(queryElement.InnerXml, "value");
-							var displayName = value;
-							var displayNames = new Dictionary<Tuple<string, int>, string>();
-							var queryChildrenElements = XmlHelper.GetXmlElementNames(queryElement.InnerXml);
-							foreach (string queryChildrenElementName in queryChildrenElements)
-							{
-								if (!string.Equals(queryChildrenElementName, "value", StringComparison.InvariantCultureIgnoreCase))
-								{
-									displayName = XmlHelper.GetXmlElementValue(queryElement.InnerXml, queryChildrenElementName);
-									
-										displayNames.Add(new Tuple<string, int>(queryChildrenElementName, 1), displayName);
-																	
-								}
-							}
+                                    displayNames.Add(new Tuple<string, int>(queryChildrenElementName, 1), displayName);
 
-							if (!string.IsNullOrEmpty(value))
-							{
-								// Set item value
-								metadataTemplate.fields.newFields
-									.First(field => field.destFieldId == new Guid("{3A07C171-9BCA-464D-8670-C5703C6D3F11}")).value = value;
-								// Set display name
-								if (displayNames.Any())
-								{
-									metadataTemplate.fields.newFields
-										.First(field => field.destFieldId == new Guid("{B5E02AD9-D56F-4C41-A065-A133DB87BDEB}")).values = displayNames;
-								}
-								else
-								{
-									metadataTemplate.fields.newFields
-										.First(field => field.destFieldId == new Guid("{B5E02AD9-D56F-4C41-A065-A133DB87BDEB}")).value = displayName;
-								}
-								SCItem convertedItem = _itemFactory.Create(metadataTemplate.destTemplateId, sourceItem, value, metadataTemplate);
-								convertedItems.Add(convertedItem);							
-							}
-						}
-					}
-				}				
-			}
+                                }
+                            }
 
-			return convertedItems;
-		}
+                            if (!string.IsNullOrEmpty(value))
+                            {
+                                // Set item value
+                                metadataTemplate.fields.newFields
+                                    .First(field => field.destFieldId == new Guid("{3A07C171-9BCA-464D-8670-C5703C6D3F11}")).value = value;
+                                // Set display name
+                                if (displayNames.Any())
+                                {
+                                    metadataTemplate.fields.newFields
+                                        .First(field => field.destFieldId == new Guid("{B5E02AD9-D56F-4C41-A065-A133DB87BDEB}")).values = displayNames;
+                                }
+                                else
+                                {
+                                    metadataTemplate.fields.newFields
+                                        .First(field => field.destFieldId == new Guid("{B5E02AD9-D56F-4C41-A065-A133DB87BDEB}")).value = displayName;
+                                }
+                                SCItem convertedItem = _itemFactory.Create(metadataTemplate.destTemplateId, sourceItem, value, metadataTemplate);
+                                convertedItems.Add(convertedItem);
+                            }
+                        }
+                    }
+                }
+            }
 
-		public override List<SCField> ConvertValueElementToFields(SCField scField, string elementValue)
-		{
-			List<SCField> convertedFields = new List<SCField>();
+            return convertedItems;
+        }
 
-			var decodedElementValue = Uri.UnescapeDataString(elementValue).Replace("+"," ");
+        public override List<SCField> ConvertValueElementToFields(SCField scField, string elementValue)
+        {
+            List<SCField> convertedFields = new List<SCField>();
 
-			XmlNode queryElement = null;
-			try
-			{
-				queryElement = XmlHelper.GetXmlElementNode(decodedElementValue, "query", true);
-			}
-			catch (Exception ex)
-			{
-				_logger.Log(new LogEntry(LoggingEventType.Error,
-					string.Format("ConvertValueElementToFields - Failed to parse Xml value. ItemID = {0} - FieldID = {1} - ElementName = {2} - ElementValue_Decoded = {3}",
-						scField.ItemId, scField.Id, "query", decodedElementValue), ex));
-			}
-			 
-			if (queryElement != null)
-			{
-				if (queryElement.Attributes != null && queryElement.Attributes["t"] != null)
-				{
-					var queryType = queryElement.Attributes["t"].Value;
-					if (string.Equals(queryType, "root", StringComparison.InvariantCultureIgnoreCase))
-					{
-						string rootItemId = XmlHelper.GetXmlElementValue(queryElement.InnerXml, "value");
-						string textFieldValue = queryElement.Attributes["tf"]?.Value ?? "__ItemName";
-						string valueFieldValue = queryElement.Attributes["vf"]?.Value ?? "__ItemName";
+            var decodedElementValue = Uri.UnescapeDataString(elementValue).Replace("+", " ");
+            if (decodedElementValue.EndsWith("q"))
+                decodedElementValue += "uery>";
+            XmlNode queryElement = null;
+            try
+            {
+                queryElement = XmlHelper.GetXmlElementNode(decodedElementValue, "query", true);
+            }
+            catch (Exception ex)
+            {
+                _logger.Log(new LogEntry(LoggingEventType.Error,
+                    string.Format("ConvertValueElementToFields - Failed to parse Xml value. ItemID = {0} - FieldID = {1} - ElementName = {2} - ElementValue_Decoded = {3}",
+                        scField.ItemId, scField.Id, "query", decodedElementValue), ex));
+            }
 
-						// Create fields
-						var datasourceField = CreateFieldFromElement(scField, new Guid("{5BE76442-950F-4C1F-A797-BEBD71101ABB}"), rootItemId, FieldType.Shared);
-						if (datasourceField != null) convertedFields.Add(datasourceField);
+            if (queryElement != null)
+            {
+                if (queryElement.Attributes != null && queryElement.Attributes["t"] != null)
+                {
+                    var queryType = queryElement.Attributes["t"].Value;
+                    if (string.Equals(queryType, "root", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        string rootItemId = XmlHelper.GetXmlElementValue(queryElement.InnerXml, "value");
+                        string textFieldValue = queryElement.Attributes["tf"]?.Value ?? "__ItemName";
+                        string valueFieldValue = queryElement.Attributes["vf"]?.Value ?? "__ItemName";
 
-						if (!string.IsNullOrEmpty(textFieldValue))
-						{
-							var displayField =
-								CreateFieldFromElement(scField, new Guid("{492361E0-72D8-4847-82BA-EBFC235CF57B}"), textFieldValue, FieldType.Shared);
-							if (displayField != null) convertedFields.Add(displayField);
-						}
+                        // Create fields
+                        var datasourceField = CreateFieldFromElement(scField, new Guid("{5BE76442-950F-4C1F-A797-BEBD71101ABB}"), rootItemId, FieldType.Shared);
+                        if (datasourceField != null) convertedFields.Add(datasourceField);
 
-						if (!string.IsNullOrEmpty(valueFieldValue))
-						{
-							var valueField =
-								CreateFieldFromElement(scField, new Guid("{78778432-6327-4CEA-A28B-E190E3541D28}"), valueFieldValue, FieldType.Shared);
-							if (valueField != null) convertedFields.Add(valueField);
-						}
+                        if (!string.IsNullOrEmpty(textFieldValue))
+                        {
+                            var displayField =
+                                CreateFieldFromElement(scField, new Guid("{492361E0-72D8-4847-82BA-EBFC235CF57B}"), textFieldValue, FieldType.Shared);
+                            if (displayField != null) convertedFields.Add(displayField);
+                        }
 
-						var isDynamicField = CreateFieldFromElement(scField, new Guid("{54424E06-0E7A-47A7-8CB2-7383D700472F}"), "1", FieldType.Shared);
-						if (isDynamicField != null) convertedFields.Add(isDynamicField);
-					}
-				}
-			}
+                        if (!string.IsNullOrEmpty(valueFieldValue))
+                        {
+                            var valueField =
+                                CreateFieldFromElement(scField, new Guid("{78778432-6327-4CEA-A28B-E190E3541D28}"), valueFieldValue, FieldType.Shared);
+                            if (valueField != null) convertedFields.Add(valueField);
+                        }
 
-			return convertedFields;
-		}
-	}
+                        var isDynamicField = CreateFieldFromElement(scField, new Guid("{54424E06-0E7A-47A7-8CB2-7383D700472F}"), "1", FieldType.Shared);
+                        if (isDynamicField != null) convertedFields.Add(isDynamicField);
+                    }
+                }
+            }
+
+            return convertedFields;
+        }
+    }
 }

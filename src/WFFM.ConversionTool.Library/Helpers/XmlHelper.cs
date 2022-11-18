@@ -38,6 +38,23 @@ namespace WFFM.ConversionTool.Library.Helpers
 			return elementNames;
 		}
 
+		public static string GetXmlElementValueByIndexed(string fieldValue, string elementName, bool throwOnError = false)
+		{
+			if (!string.IsNullOrEmpty(fieldValue) && !string.IsNullOrEmpty(elementName))
+			{
+				var start = fieldValue.IndexOf($"<{elementName}>");
+				if (start < 0)
+					return null;
+				start += elementName.Length + 2;
+				var length = fieldValue.IndexOf($"</{elementName}>") - start - elementName.Length - 2;
+				if (length < 0)
+					return null;
+				var content = fieldValue.Substring(start, length);
+				return content;
+			}
+			return string.Empty;
+		}
+
 		public static string GetXmlElementValue(string fieldValue, string elementName, bool throwOnError = false)
 		{
 			if (!string.IsNullOrEmpty(fieldValue) && !string.IsNullOrEmpty(elementName))
@@ -46,6 +63,10 @@ namespace WFFM.ConversionTool.Library.Helpers
 				fieldValue = SanitizeFieldValue(fieldValue);
 				try
 				{
+					var result = GetXmlElementValueByIndexed(fieldValue, elementName, throwOnError);
+					if (result != null)
+						return result;
+
 					xmlDocument.LoadXml(AddParentNodeAndEncodeElementValue(fieldValue));
 
 					XmlNodeList elementsByTagName = xmlDocument.GetElementsByTagName(elementName);
@@ -59,7 +80,7 @@ namespace WFFM.ConversionTool.Library.Helpers
 				catch (Exception e)
 				{
 					Console.WriteLine();
-					Console.WriteLine("XmlHelper - GetXmlElementValue - Failed to parse Xml value - Value = " + fieldValue);
+					Console.WriteLine($"XmlHelper - GetXmlElementValue - Failed to parse Xml ({elementName}) value - Value = " + fieldValue);
 					Console.WriteLine(e);
 					Console.WriteLine();
 					if (throwOnError)
@@ -68,7 +89,7 @@ namespace WFFM.ConversionTool.Library.Helpers
 						Console.WriteLine();
 						throw;
 					}
-				}			
+				}
 			}
 			return string.Empty;
 		}
@@ -81,6 +102,10 @@ namespace WFFM.ConversionTool.Library.Helpers
 				fieldValue = SanitizeFieldValue(fieldValue);
 				try
 				{
+					var result = GetXmlElementValueByIndexed(fieldValue, elementName, throwOnError);
+					if (result != null)
+						fieldValue = $"<{elementName}>{result}</{elementName}>";
+
 					xmlDocument.LoadXml(AddParentNodeAndEncodeElementValue(fieldValue));
 
 					XmlNodeList elementsByTagName = xmlDocument.GetElementsByTagName(elementName);
@@ -93,16 +118,16 @@ namespace WFFM.ConversionTool.Library.Helpers
 				catch (Exception e)
 				{
 					Console.WriteLine();
-					Console.WriteLine("XmlHelper - GetXmlElementNode - Failed to parse Xml value - Value = " + fieldValue);
+					Console.WriteLine($"XmlHelper - GetXmlElementNode - Failed to parse Xml ({elementName}) value - Value = " + fieldValue);
 					Console.WriteLine(e);
 					Console.WriteLine();
 					if (throwOnError)
 					{
 						Console.WriteLine("See logs for more details in the logs folder.");
 						Console.WriteLine();
-						throw;
+						//throw;
 					}
-				}			
+				}
 			}
 			return null;
 		}
@@ -115,6 +140,10 @@ namespace WFFM.ConversionTool.Library.Helpers
 				fieldValue = SanitizeFieldValue(fieldValue);
 				try
 				{
+					var result = GetXmlElementValueByIndexed(fieldValue, elementName, throwOnError);
+					if (result != null)
+						fieldValue = $"<{elementName}>{result}</{elementName}>";
+
 					xmlDocument.LoadXml(AddParentNodeAndEncodeElementValue(fieldValue));
 
 					XmlNodeList elementsByTagName = xmlDocument.GetElementsByTagName(elementName);
@@ -127,7 +156,7 @@ namespace WFFM.ConversionTool.Library.Helpers
 				catch (Exception e)
 				{
 					Console.WriteLine();
-					Console.WriteLine("XmlHelper - GetXmlElementNodeList - Failed to parse Xml value - Value = " + fieldValue);
+					Console.WriteLine($"XmlHelper - GetXmlElementNodeList - Failed to parse Xml ({elementName}) value - Value = " + fieldValue);
 					Console.WriteLine(e);
 					Console.WriteLine();
 					if (throwOnError)
@@ -136,7 +165,7 @@ namespace WFFM.ConversionTool.Library.Helpers
 						Console.WriteLine();
 						throw;
 					}
-				}				
+				}
 			}
 			return null;
 		}
@@ -159,7 +188,7 @@ namespace WFFM.ConversionTool.Library.Helpers
 					Console.WriteLine(e);
 					Console.WriteLine();
 				}
-				
+
 			}
 			return fieldValue;
 		}
@@ -172,7 +201,7 @@ namespace WFFM.ConversionTool.Library.Helpers
 				// Add parent xml element to value
 				fieldValue = string.Format("<ParentNode>{0}</ParentNode>", fieldValue);
 				// Escape special chars in text value
-				fieldValue = fieldValue.Replace(" & ", " &amp; ").Replace(" &<"," &amp;<");
+				fieldValue = fieldValue.Replace(" & ", " &amp; ").Replace(" &<", " &amp;<");
 			}
 
 			return fieldValue;
@@ -181,14 +210,14 @@ namespace WFFM.ConversionTool.Library.Helpers
 		private static string SanitizeFieldValue(string fieldValue)
 		{
 			return fieldValue.Replace("<br>", "<br/>")
-				.Replace("</em<","</em><")
-				.Replace("</b<","</b><")
-				.Replace("</a<","</a><")
-				.Replace("</strong<","</strong><")
-				.Replace("</i<","</i><")
+				.Replace("</em<", "</em><")
+				.Replace("</b<", "</b><")
+				.Replace("</a<", "</a><")
+				.Replace("</strong<", "</strong><")
+				.Replace("</i<", "</i><")
 				.Replace("&rsquo;", "’")
 				.Replace("&lsquo;", "‘")
-				.Replace("&nbsp;"," ");
+				.Replace("&nbsp;", " ");
 		}
 	}
 }
